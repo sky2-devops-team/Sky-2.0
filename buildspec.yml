@@ -3,7 +3,7 @@ version: 0.2
 phases:
   install:
     runtime-versions:
-      python: 3.9  # Especifica la versión de Python
+      python: 3.9
     commands:
       - echo "Instalando dependencias..."
       - python -m pip install --upgrade pip
@@ -19,18 +19,22 @@ phases:
     commands:
       - echo "Ejecutando pipeline Sky20..."
       - echo "Ejecutando tests..."
-      - pytest --verbose || exit 1  # Falla si hay errores en tests
-      - echo "Ejecutando linting..."
-      - flake8 . --max-line-length=88 || exit 1  # Falla si hay errores de estilo
+      - pytest --verbose
+      - echo "Ejecutando linting..."  
+      - flake8 . --max-line-length=88
       - echo "Ejecutando escaneo de seguridad..."
-      - bandit -r . -f json -o bandit-report.json || exit 1  # Falla si hay vulnerabilidades críticas
+      - bandit -r . -f json -o bandit-report.json
       - echo "Pipeline completado correctamente."
       
   post_build:
     commands:
       - echo "Limpieza y reportes finales..."
-      - echo "Build completado el $(date)"
+      - echo "Build completado"
 
+artifacts:
+  files:
+    - bandit-report.json
+  name: sky20-security-report
 artifacts:
   files:
     - bandit-report.json
