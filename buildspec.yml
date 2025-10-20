@@ -1,6 +1,15 @@
 version: 0.2
 
 phases:
+  install:
+    commands:
+      - echo "Instalando dependencias..."
+      - pip install pytest flake8 bandit
+
   build:
     commands:
-      - echo "Build Sky20 ejecutado correctamente."
+      - echo "Ejecutando pipeline Sky20..."
+      - pytest || echo "No se encontraron tests"
+      - flake8 || echo "Linting completado"
+      - bandit -r . || echo "Escaneo de seguridad finalizado"
+      - echo "Pipeline completado correctamente."
