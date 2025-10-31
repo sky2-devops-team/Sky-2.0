@@ -1,0 +1,14 @@
+[Unit]
+Description=Clientes API (Flask + Gunicorn)
+After=network.target
+
+[Service]
+Type=simple
+User=ec2-user
+WorkingDirectory=/opt/clientes-app
+ExecStart=/opt/clientes-app/.venv/bin/gunicorn -w 2 -b 127.0.0.1:8000 app.app:app
+Restart=always
+Environment="PYTHONUNBUFFERED=1"
+
+[Install]
+WantedBy=multi-user.target

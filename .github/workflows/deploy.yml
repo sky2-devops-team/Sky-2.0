@@ -1,0 +1,46 @@
+name: Deploy to EC2
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch o tag a desplegar (ej. main o v1.0.0)"
+        required: true
+        default: "main"
+  push:
+    branches: [ main ]
+    paths:
+      - "app/**"
+      - "requirements.txt"
+      - "scripts/**"
+      - "service/**"
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+      - name: Setup SSH key
+        run: |
+          echo "${{ secrets.EC2_SSH_KEY }}" > key.pem
+          chmod 600 key.pem
+      - name: Sync code to EC2
+        run: |
+          rsync -az --delete -e "ssh -i key.pem -o StrictHostKeyChecking=no" \
+            ./ ec2-user@${{ secrets.EC2_HOST }}:/opt/clientes-app/
+      - name: Install & restart service
+        run: |
+          ssh -i key.pem -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} << 'EOF'
+            set -e
+            sudo mkdir -p /opt/clientes-app
+            cd /opt/clientes-app
+            sudo python3 -m venv .venv || true
+            sudo .venv/bin/pip install --upgrade pip
+            if [ -f requirements.txt ]; then sudo .venv/bin/pip install -r requirements.txt; fi
+            sudo cp -f service/clientes.service /etc/systemd/system/clientes.service
+            sudo systemctl daemon-reload
+            sudo systemctl enable clientes --now
+            sudo systemctl restart clientes
+            sudo systemctl status clientes --no-pager -l || true
+          EOF
