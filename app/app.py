@@ -2,8 +2,8 @@ from flask import Flask, request, jsonify
 import sqlite3
 from pathlib import Path
 
+# Trigger deploy - updated deployment workflow
 DB_PATH = Path(__file__).resolve().parent.parent / "clientes.db"
-
 app = Flask(__name__)
 
 def init_db():
