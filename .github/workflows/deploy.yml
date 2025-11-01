@@ -1,4 +1,5 @@
 name: Deploy to EC2
+
 on:
   workflow_dispatch:
     inputs:
@@ -13,6 +14,7 @@ on:
       - "requirements.txt"
       - "scripts/**"
       - "service/**"
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -27,8 +29,15 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/key.pem
           chmod 600 ~/.ssh/key.pem
-          # Agregar host a known_hosts para evitar prompt
-          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+      
+      - name: Test SSH connection
+        run: |
+          echo "Testing connection to ${{ secrets.EC2_HOST }}..."
+          ssh -i ~/.ssh/key.pem \
+            -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=10 \
+            -o BatchMode=yes \
+            ec2-user@${{ secrets.EC2_HOST }} "echo 'SSH connection successful'"
       
       - name: Sync code to EC2
         run: |
@@ -37,25 +46,37 @@ jobs:
             --exclude='.git' \
             --exclude='.venv' \
             --exclude='__pycache__' \
+            --exclude='*.pyc' \
             ./ ec2-user@${{ secrets.EC2_HOST }}:/opt/clientes-app/
       
       - name: Install & restart service
         run: |
-          ssh -i ~/.ssh/key.pem -o StrictHostKeyChecking=no -o ConnectTimeout=30 \
+          ssh -i ~/.ssh/key.pem \
+            -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=30 \
             ec2-user@${{ secrets.EC2_HOST }} << 'EOF'
             set -e
             cd /opt/clientes-app
             
-            # Crear venv si no existe
-            [ ! -d ".venv" ] && python3 -m venv .venv
+            # Crear venv si no existe (sin sudo)
+            if [ ! -d ".venv" ]; then
+              python3 -m venv .venv
+            fi
             
-            # Instalar dependencias
+            # Activar venv e instalar dependencias
             source .venv/bin/activate
             pip install --upgrade pip
-            if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+            if [ -f requirements.txt ]; then 
+              pip install -r requirements.txt
+            fi
             
-            # Configurar servicio
+            # Configurar y reiniciar servicio
             sudo cp -f service/clientes.service /etc/systemd/system/clientes.service
             sudo systemctl daemon-reload
             sudo systemctl enable clientes
             sudo systemctl restart clientes
+            
+            # Esperar y verificar status
+            sleep 3
+            sudo systemctl status clientes --no-pager || true
+          EOF
