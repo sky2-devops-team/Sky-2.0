@@ -1,0 +1,12 @@
+name: Actualizar cliente
+description: Modificar datos de un cliente existente
+labels: ["update-client"]
+body:
+  - type: input
+    id: id
+    attributes: { label: ID del cliente }
+    validations: { required: true }
+  - type: input
+    id: cambios
+    attributes: { label: Campos a actualizar (JSON) }
+    validations: { required: true }
