@@ -23,60 +23,67 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.inputs.ref || github.ref }}
-      
-      - name: Setup SSH key
+
+      - name: Prepare SSH
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/key.pem
-          chmod 600 ~/.ssh/key.pem
-      
-      - name: Test SSH connection
+          echo "${{ secrets.EC2_KEY }}" > ~/.ssh/sky2.pem
+          chmod 600 ~/.ssh/sky2.pem
+          # Conocemos la huella del host en tiempo de ejecución
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Test SSH connectivity
         run: |
-          echo "Testing connection to ${{ secrets.EC2_HOST }}..."
-          ssh -i ~/.ssh/key.pem \
-            -o StrictHostKeyChecking=no \
-            -o ConnectTimeout=10 \
-            -o BatchMode=yes \
-            ec2-user@${{ secrets.EC2_HOST }} "echo 'SSH connection successful'"
-      
-      - name: Sync code to EC2
+          ssh -i ~/.ssh/sky2.pem -p ${{ secrets.EC2_PORT }} -o StrictHostKeyChecking=yes \
+            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "echo 'SSH OK on '$(hostname)"
+
+      - name: Create app dir on EC2
         run: |
-          rsync -avz --delete \
-            -e "ssh -i ~/.ssh/key.pem -o StrictHostKeyChecking=no -o ConnectTimeout=30" \
+          ssh -i ~/.ssh/sky2.pem -p ${{ secrets.EC2_PORT }} \
+            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} \
+            "mkdir -p ${{ secrets.APP_DIR }}"
+
+      - name: Sync files to EC2
+        run: |
+          rsync -az --delete \
             --exclude='.git' \
             --exclude='.venv' \
             --exclude='__pycache__' \
             --exclude='*.pyc' \
-            ./ ec2-user@${{ secrets.EC2_HOST }}:/opt/clientes-app/
-      
-      - name: Install & restart service
+            -e "ssh -i ~/.ssh/sky2.pem -p ${{ secrets.EC2_PORT }} -o StrictHostKeyChecking=yes" \
+            ./ ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:${{ secrets.APP_DIR }}/
+
+      - name: Install deps & restart service
         run: |
-          ssh -i ~/.ssh/key.pem \
-            -o StrictHostKeyChecking=no \
-            -o ConnectTimeout=30 \
-            ec2-user@${{ secrets.EC2_HOST }} << 'EOF'
+          ssh -i ~/.ssh/sky2.pem -p ${{ secrets.EC2_PORT }} \
+            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
             set -e
-            cd /opt/clientes-app
-            
+            cd "${APP_DIR}"
+
             # Crear venv si no existe
             if [ ! -d ".venv" ]; then
               python3 -m venv .venv
             fi
-            
+
             # Activar venv e instalar dependencias
             source .venv/bin/activate
-            pip install --upgrade pip
-            if [ -f requirements.txt ]; then 
+            python -m pip install --upgrade pip
+            if [ -f requirements.txt ]; then
               pip install -r requirements.txt
             fi
-            
-            # Configurar y reiniciar servicio
-            sudo cp -f service/clientes.service /etc/systemd/system/clientes.service
-            sudo systemctl daemon-reload
-            sudo systemctl enable clientes
-            sudo systemctl restart clientes
-            
-            # Esperar y verificar status
-            sleep 3
-            sudo systemctl status clientes --no-pager || true
+
+            # Instalar unit file y reiniciar servicio
+            if [ -f "service/${SERVICE_NAME}.service" ]; then
+              sudo cp -f "service/${SERVICE_NAME}.service" "/etc/systemd/system/${SERVICE_NAME}.service"
+              sudo systemctl daemon-reload
+              sudo systemctl enable "${SERVICE_NAME}"
+              sudo systemctl restart "${SERVICE_NAME}"
+              sleep 3
+              sudo systemctl status "${SERVICE_NAME}" --no-pager || true
+            else
+              echo "No se encontró service/${SERVICE_NAME}.service; omitiendo systemd."
+            fi
           EOF
+        env:
+          APP_DIR: ${{ secrets.APP_DIR }}
+          SERVICE_NAME: ${{ secrets.SERVICE_NAME }}
