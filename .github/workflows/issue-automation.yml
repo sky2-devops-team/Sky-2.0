@@ -1,0 +1,25 @@
+name: Issue Automations
+on:
+  issues:
+    types: [opened, edited, labeled]
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+jobs:
+  route:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const labels = (issue.labels || []).map(l => l.name);
+            function reply(body){ github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: issue.number, body }) }
+            if(labels.includes("new-client")) reply("✅ *Nuevo cliente* recibido. Rama `feature/new-client-#"+issue.number+"`.");
+            else if(labels.includes("update-client")) reply("✏️ *Actualizar cliente* recibido. Rama `feature/update-client-#"+issue.number+"`.");
+            else if(labels.includes("query-client")) reply("🔎 *Consulta cliente* recibida. Validaremos endpoints/pruebas.");
+            else if(labels.includes("feature-request")) reply("💡 *Solicitud de mejora* registrada. Priorización en backlog.");
+            else if(labels.includes("code-change")) reply("🛠️ *Modificación de código* solicitada. Requerirá PR con CI verde.");
+            else if(labels.includes("new-function")) reply("🧩 *Nueva función* solicitada. Rama `feature/new-function-#"+issue.number+"`.");
+            else reply("Etiqueta con: `new-client`, `update-client`, `query-client`, `feature-request`, `code-change`, `new-function`.");
