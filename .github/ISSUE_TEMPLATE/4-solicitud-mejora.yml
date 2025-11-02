@@ -1,0 +1,8 @@
+name: Solicitud de mejora
+description: Proponer una mejora
+labels: ["feature-request"]
+body:
+  - type: textarea
+    id: detalle
+    attributes: { label: Descripción de la mejora }
+    validations: { required: true }
