@@ -1,0 +1,16 @@
+name: Nuevo cliente
+description: Alta de cliente en la app
+labels: ["new-client"]
+body:
+  - type: input
+    id: id
+    attributes: { label: ID (entero) }
+    validations: { required: true }
+  - type: input
+    id: nombre
+    attributes: { label: Nombre del cliente }
+    validations: { required: true }
+  - type: dropdown
+    id: estatus
+    attributes: { label: Estatus, options: ["activo","inactivo"] }
+    validations: { required: true }
